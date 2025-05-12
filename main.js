@@ -1,9 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
   const modalEl    = document.getElementById('addToCartModal');
-  const modalTitle = modalEl.querySelector('.modal-title');
+  const modalTitle = document.getElementById('modal-title');
   const modalImg = document.getElementById('modalProductImg');  
   const modalText  = modalEl.querySelector('p');
-  const goBtn      = modalEl.querySelector('#goToCartBtn');
+  const goBtn      = document.getElementById('goToCartBtn');
 
   // Запоминаем последний элемент-карточку
   let lastCardData = null;

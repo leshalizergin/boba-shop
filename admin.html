@@ -2,83 +2,182 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Админ-панель</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Админка — Управление товарами</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-light">
-  <div class="container py-4">
-    <h2 class="fw-bold text-center mb-4">Админ-панель: Заказы</h2>
-    <div id="adminContent" class="d-none">
-      <div id="ordersList" class="row g-3"></div>
+<body>
+
+  <nav class="navbar navbar-expand-lg bg-white shadow-sm">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="index.html">BobaTea Admin</a>
+      <button id="addNewBtn" class="btn btn-success ms-auto" data-bs-toggle="modal" data-bs-target="#productModal">
+        Добавить новый чай
+      </button>
     </div>
-    <div id="errorMessage" class="text-danger text-center fw-semibold"></div>
+  </nav>
+
+  <main class="container py-4">
+    <h2 class="mb-4">Список продуктов</h2>
+    <div id="productsList" class="row g-3"></div>
+  </main>
+
+  <!-- Модалка продукта -->
+  <div class="modal fade" id="productModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <form class="modal-content" id="productForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalTitle">Редактировать продукт</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body row g-3">
+          <input type="hidden" id="productId">
+          <div class="col-md-6">
+            <label class="form-label">Название</label>
+            <input id="productName" class="form-control" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Цена, ₽</label>
+            <input id="productPrice" type="number" class="form-control" min="0" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Фото (URL)</label>
+            <input id="productPhoto" class="form-control" placeholder="content/tea.png" required>
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input id="productDisabled" type="checkbox" class="form-check-input">
+              <label class="form-check-label">Отключить товар</label>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-primary">Сохранить</button>
+        </div>
+      </form>
+    </div>
   </div>
 
-  <!-- Firebase SDK -->
-  <script type="module" src="firebase.js"></script>
-  <script type="module" src="main.js"></script>
+  <!-- 1. Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+
+  <!-- 2. Инициализация -->
+  <script src="firebase-init.js"></script>
+
+  <!-- 3. Логика админки -->
   <script>
-    // 🔧 Вставь свой firebaseConfig ниже
-    const db = firebase.firestore();
+    const productsList = document.getElementById('productsList');
+    const form         = document.getElementById('productForm');
+    const modalTitle   = document.getElementById('modalTitle');
+    const idField      = document.getElementById('productId');
+    const nameInput    = document.getElementById('productName');
+    const priceInput   = document.getElementById('productPrice');
+    const photoInput   = document.getElementById('productPhoto');
+    const disabledChk  = document.getElementById('productDisabled');
+    const bsModal      = new bootstrap.Modal(document.getElementById('productModal'));
 
-    const adminContent = document.getElementById("adminContent");
-    const ordersList = document.getElementById("ordersList");
-    const errorEl = document.getElementById("errorMessage");
-
-    // 👤 Проверка роли администратора
-    auth.onAuthStateChanged(async user => {
-      if (!user) {
-        errorEl.textContent = "Вы не вошли в аккаунт.";
-        return;
-      }
-
-      const roleDoc = await db.collection("roles").doc(user.uid).get();
-      if (!roleDoc.exists || roleDoc.data().role !== "admin") {
-        errorEl.textContent = "У вас нет прав администратора.";
-        return;
-      }
-
-      // Если админ — загружаем заказы
-      adminContent.classList.remove("d-none");
-      loadOrders();
-    });
-
-    // 📦 Загрузка заказов
-    async function loadOrders() {
+    // Загрузка
+    async function loadProducts() {
+      productsList.innerHTML = '';
       try {
-        const snapshot = await db.collection("orders").orderBy("createdAt", "desc").get();
-
-        if (snapshot.empty) {
-          ordersList.innerHTML = "<p class='text-center text-muted'>Нет заказов.</p>";
-          return;
-        }
-
-        snapshot.forEach(doc => {
-          const data = doc.data();
-          const date = new Date(data.createdAt).toLocaleString();
-          const itemsHtml = data.items.map(item =>
-            `<li>${item.title} (${item.size}) — ${item.quantity} шт. по ₽${item.price}</li>`
-          ).join("");
-
-          ordersList.innerHTML += `
-            <div class="col-12">
-              <div class="border rounded p-3 bg-white shadow-sm">
-                <h5 class="fw-bold mb-1">Заказ от ${data.email}</h5>
-                <p class="mb-1 text-muted">Дата: ${date}</p>
-                <p class="mb-1">Сумма: <strong>₽${data.total}</strong></p>
-                <ul class="mb-0">${itemsHtml}</ul>
-              </div>
-            </div>
-          `;
-        });
-      } catch (err) {
-        console.error("Ошибка при загрузке заказов:", err);
-        errorEl.textContent = "Ошибка загрузки заказов.";
+        const snap = await db.collection('products').orderBy('name').get();
+        console.log('Loaded', snap.size, 'products');
+        snap.forEach(doc => renderProduct(doc.id, doc.data()));
+      } catch (e) {
+        console.error('Firestore read error:', e);
+        productsList.innerHTML = '<p class="text-danger">Ошибка загрузки</p>';
       }
     }
+
+    // Рендер карточки
+    function renderProduct(id, d) {
+      const col = document.createElement('div');
+      col.className = 'col-md-4';
+      col.innerHTML = `
+        <div class="card h-100 ${d.disabled?'bg-light text-muted':''}">
+          <img src="${d.photo}" class="card-img-top" alt="${d.name}">
+          <div class="card-body">
+            <h5 class="card-title">${d.name}</h5>
+            <p class="card-text">₽${d.price}</p>
+            <button class="btn btn-sm btn-primary me-2" onclick="editProduct('${id}')">Изменить</button>
+            <button class="btn btn-sm btn-${d.disabled?'success':'danger'}" onclick="toggleDisabled('${id}',${d.disabled})">
+              ${d.disabled?'Активировать':'Отключить'}
+            </button>
+          </div>
+        </div>`;
+      productsList.append(col);
+    }
+
+    // Добавить новый
+    document.getElementById('addNewBtn').onclick = () => {
+      modalTitle.textContent = 'Добавить новый чай';
+      form.reset();
+      idField.value = '';
+      bsModal.show();
+    };
+
+    // Редактировать
+    window.editProduct = async id => {
+      try {
+        const doc = await db.collection('products').doc(id).get();
+        const d = doc.data();
+        modalTitle.textContent = 'Редактировать продукт';
+        idField.value = id;
+        nameInput.value  = d.name;
+        priceInput.value = d.price;
+        photoInput.value = d.photo;
+        disabledChk.checked = !!d.disabled;
+        bsModal.show();
+      } catch (e) {
+        console.error('Read single error:', e);
+      }
+    };
+
+    // Включить/отключить
+    window.toggleDisabled = async (id, wasDisabled) => {
+      try {
+        await db.collection('products').doc(id).update({ disabled: !wasDisabled });
+        console.log(`Toggled disabled for ${id}`);
+        loadProducts();
+      } catch(e) {
+        console.error('Toggle error:', e);
+      }
+    };
+
+    // Сохранить форму
+    form.onsubmit = async ev => {
+      ev.preventDefault();
+      const payload = {
+        name: nameInput.value.trim(),
+        price: Number(priceInput.value),
+        photo: photoInput.value.trim(),
+        disabled: disabledChk.checked
+      };
+      try {
+        if (idField.value) {
+          await db.collection('products').doc(idField.value).set(payload);
+          console.log('Updated', idField.value, payload);
+        } else {
+          const ref = await db.collection('products').add(payload);
+          console.log('Added', ref.id, payload);
+        }
+        bsModal.hide();
+        loadProducts();
+      } catch (e) {
+        console.error('Firestore write error:', e);
+        alert('Не удалось сохранить');
+      }
+    };
+
+    // Запуск
+    loadProducts();
   </script>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
